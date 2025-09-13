@@ -4,7 +4,7 @@ use minifb::{Key, Window, WindowOptions};
 use std::time::Duration;
 use std::f32::consts::PI;
 
-use rayon::prelude::*;
+use rayon::prelude::*; 
 
 mod framebuffer;
 mod ray_intersect;
@@ -23,7 +23,7 @@ use light::Light;
 use material::Material;
 
 const SHADOW_BIAS: f32 = 1e-4;
-const MAX_RAY_DEPTH: u32 = 1; 
+const MAX_RAY_DEPTH: u32 = 1;
 
 fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
     incident - 2.0 * incident.dot(normal) * normal
@@ -64,7 +64,7 @@ pub fn cast_ray(
     depth: u32,
 ) -> Color {
     if depth > MAX_RAY_DEPTH {
-        return Color::new(135.0, 206.0, 235.0); // sky blue
+        return Color::new(135.0, 206.0, 235.0);
     }
 
     let mut intersect = Intersect::empty();
@@ -83,11 +83,9 @@ pub fn cast_ray(
     }
 
     let view_dir = (ray_origin - intersect.point).normalize();
-    let mut result_color = Color::new(0.0, 0.0, 0.0);
-
     let is_crystal = intersect.material.is_crystal;
 
-    // Color base: textura si existe, sino color difuso
+    // Color base: textura si existe
     let mut base_color = intersect.material.diffuse;
     if let Some(tex) = &intersect.material.texture {
         if let Some((u, v)) = intersect.uv {
@@ -95,11 +93,7 @@ pub fn cast_ray(
             let tx = ((u.clamp(0.0, 1.0)) * (tw - 1) as f32) as u32;
             let ty = ((v.clamp(0.0, 1.0)) * (th - 1) as f32) as u32;
             let pixel = tex.get_pixel(tx, ty);
-            base_color = Color::new(
-                pixel[0] as f32,
-                pixel[1] as f32,
-                pixel[2] as f32,
-            );
+            base_color = Color::new(pixel[0] as f32, pixel[1] as f32, pixel[2] as f32);
         }
     }
 
@@ -121,7 +115,6 @@ pub fn cast_ray(
 
         lighting_color = lighting_color + diffuse + specular;
     }
-    result_color = lighting_color;
 
     if is_crystal {
         let reflect_dir = reflect(ray_direction, &intersect.normal).normalize();
@@ -130,43 +123,20 @@ pub fn cast_ray(
         } else {
             intersect.point + intersect.normal * SHADOW_BIAS
         };
-        let reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, lights, depth + 1);
-
-        let ior = 1.5;
-        let mut refract_dir = ray_direction.clone();
-        let mut refract_color = Color::new(0.0, 0.0, 0.0);
-        let cosi = (-ray_direction).dot(&intersect.normal).max(-1.0).min(1.0);
-        let etai = 1.0;
-        let etat = ior;
-        let n = if cosi < 0.0 { -intersect.normal } else { intersect.normal };
-        let eta = if cosi < 0.0 { etat / etai } else { etai / etat };
-        let k = 1.0 - eta * eta * (1.0 - cosi * cosi);
-        if k >= 0.0 {
-            refract_dir = (ray_direction * eta + n * (eta * cosi - k.sqrt())).normalize();
-            let refract_origin = if refract_dir.dot(&intersect.normal) < 0.0 {
-                intersect.point - intersect.normal * SHADOW_BIAS
-            } else {
-                intersect.point + intersect.normal * SHADOW_BIAS
-            };
-            refract_color = cast_ray(&refract_origin, &refract_dir, objects, lights, depth + 1);
-        }
-
-        let reflectance = 0.5;
-        return reflect_color * reflectance + refract_color * (1.0 - reflectance);
+        return cast_ray(&reflect_origin, &reflect_dir, objects, lights, depth + 1);
     }
 
-    result_color
+    lighting_color
 }
 
-// Render con Rayon
+// Render usando threads con rayon
 pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, lights: &[Light]) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
     let aspect_ratio = width / height;
-    let fov = PI/3.0;
+    let fov = PI / 3.0;
     let perspective_scale = (fov * 0.5).tan();
 
-    // Paralelizamos por filas
     framebuffer.buffer
         .par_chunks_mut(framebuffer.width as usize)
         .enumerate()
@@ -190,7 +160,7 @@ fn main() {
     let window_width = 800;
     let window_height = 600;
     let framebuffer_width = 400;  
-    let framebuffer_height = 300; 
+    let framebuffer_height = 300;
     let frame_delay = Duration::from_millis(16);
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
